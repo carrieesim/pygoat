@@ -1,17 +1,13 @@
-# 1. Name of the workflow
 name: Generate, Sign, and Commit SBOM
 
-# 2-4. Trigger on push to master or manual run
 on:
   push:
     branches:
       - master
   workflow_dispatch:
 
-# 5. Define jobs
 jobs:
 
-  # 6. Job to generate and sign the SBOM
   generate-and-sign-sbom:
     runs-on: ubuntu-latest
     permissions:
@@ -30,15 +26,15 @@ jobs:
           sudo mv syft /usr/local/bin/
           syft version
 
-      - name: Generate SBOM in CycloneDX format
+      - name: Generate SBOM in SPDX JSON format
         run: |
-          syft dir:. -o cyclonedx-json --file log4shell-vulnerable-app-cdx.json
+          syft dir:. -o spdx-json --file log4shell-vulnerable-app-spdx.json
 
-      - name: Upload SBOM as artifact
+      - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: SBOM
-          path: log4shell-vulnerable-app-cdx.json
+          path: log4shell-vulnerable-app-spdx.json
 
       - name: Install Cosign
         run: |
@@ -47,23 +43,22 @@ jobs:
           chmod +x cosign-linux-amd64
           sudo mv cosign-linux-amd64 /usr/local/bin/cosign
 
-      - name: Sign the SBOM and generate certificate
+      - name: Sign SBOM
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign-blob --yes --oidc-issuer="https://token.actions.githubusercontent.com" \
-            --output-certificate log4shell-vulnerable-app-cdx.pem \
-            log4shell-vulnerable-app-cdx.json
+            --output-certificate log4shell-vulnerable-app-spdx.pem \
+            log4shell-vulnerable-app-spdx.json
 
-      - name: Commit SBOM, Signature, and Certificate to repository
+      - name: Commit SBOM and signature
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-          git add log4shell-vulnerable-app-cdx.json log4shell-vulnerable-app-cdx.pem
-          git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
+          git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
+          git commit -m "Add and sign SBOM" || echo "No changes to commit"
           git push
 
-  # 7. Vulnerability analysis job
   vulnerability-analysis:
     needs: generate-and-sign-sbom
     runs-on: ubuntu-latest
@@ -79,15 +74,20 @@ jobs:
 
       - name: Install Grype
         run: |
-          GRYPE_VERSION="0.74.0"
+          GRYPE_VERSION="0.88.0"
           curl -sSfL https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz | tar -xz
           sudo mv grype /usr/local/bin/
           grype version
 
+      - name: Validate SBOM JSON
+        run: |
+          head -40 log4shell-vulnerable-app-spdx.json
+          jq empty log4shell-vulnerable-app-spdx.json
+
       - name: Run vulnerability analysis
         id: grype_scan
         run: |
-          grype sbom:log4shell-vulnerable-app-cdx.json -o table > grype_output.txt
+          grype sbom:log4shell-vulnerable-app-spdx.json -o table > grype_output.txt
           if grep -q "Critical" grype_output.txt; then
             echo "found=true" >> $GITHUB_OUTPUT
           else
@@ -99,7 +99,5 @@ jobs:
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
-            -d '{
-              "text": "🚨 Critical vulnerabilities detected in the latest SBOM scan for *log4shell-vulnerable-app*. Please review the results on GitHub."
-            }' \
+            -d '{"text":"🚨 Critical vulnerabilities detected in latest SBOM scan. Please review on GitHub."}' \
             "${{ secrets.TEAMS_WEBHOOK }}"
