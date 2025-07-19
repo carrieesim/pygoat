@@ -30,15 +30,15 @@ jobs:
           sudo mv syft /usr/local/bin/
           syft version
 
-      - name: Generate SBOM in CycloneDX format
+      - name: Generate SBOM in Syft format
         run: |
-          syft . -o cyclonedx-json > log4shell-vulnerable-app-CDX.json
+          syft . -o syft-json > log4shell-vulnerable-app-syft.json
 
       - name: Upload SBOM as an artifact
         uses: actions/upload-artifact@v4
         with:
           name: SBOM
-          path: log4shell-vulnerable-app-CDX.json
+          path: log4shell-vulnerable-app-syft.json
 
       - name: Install Cosign
         run: |
@@ -52,14 +52,14 @@ jobs:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign-blob --yes --oidc-issuer="https://token.actions.githubusercontent.com" \
-            --output-certificate log4shell-vulnerable-app-CDX.pem \
-            log4shell-vulnerable-app-CDX.json
+            --output-certificate log4shell-vulnerable-app-syft.pem \
+            log4shell-vulnerable-app-syft.json
 
       - name: Commit SBOM, Signature, and Certificate to repository
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-          git add log4shell-vulnerable-app-CDX.json log4shell-vulnerable-app-CDX.pem
+          git add log4shell-vulnerable-app-syft.json log4shell-vulnerable-app-syft.pem
           git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
           git push
 
@@ -87,14 +87,13 @@ jobs:
       - name: Run vulnerability analysis
         id: grype_scan
         run: |
-          grype log4shell-vulnerable-app-CDX.json -o table > grype_output.txt
+          grype log4shell-vulnerable-app-syft.json -o table > grype_output.txt
           if grep -q "Critical" grype_output.txt; then
             echo "found=true" >> $GITHUB_OUTPUT
           else
             echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      # ✅ Microsoft Teams Notification
       - name: Notify Teams if vulnerability found
         if: steps.grype_scan.outputs.found == 'true'
         run: |
