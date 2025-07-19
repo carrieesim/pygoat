@@ -5,7 +5,7 @@ name: Generate, Sign, and Commit SBOM
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 # 5. Define jobs to run in this workflow
