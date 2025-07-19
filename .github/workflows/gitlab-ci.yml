@@ -95,10 +95,32 @@ jobs:
             echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Notify Teams if vulnerability found
-        if: steps.grype_scan.outputs.found == 'true'
+      - name: Notify Teams via Power Automate Webhook
         run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d '{"text":"🚨 Vulnerabilities detected in latest SBOM scan. Please review on GitHub."}' \
-            "${{ secrets.TEAMS_WEBHOOK }}"
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "attachments": [
+              {
+                "content": {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "type": "AdaptiveCard",
+                  "version": "1.3",
+                  "body": [
+                    {
+                      "type": "TextBlock",
+                      "text": "🚨 Vulnerability Detected",
+                      "weight": "Bolder",
+                      "size": "Medium"
+                    },
+                    {
+                      "type": "TextBlock",
+                      "text": "A vulnerability was detected in the SBOM scan.",
+                      "wrap": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }' \
+          "${{ secrets.TEAMS_WEBHOOK }}"
+
