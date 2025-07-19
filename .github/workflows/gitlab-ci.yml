@@ -55,10 +55,10 @@ jobs:
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-          git pull --rebase origin master
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
           git commit -m "Add and sign SBOM" || echo "No changes to commit"
-          git push
+          git pull --rebase origin master || true
+          git push || echo "Nothing to push"
 
   vulnerability-analysis:
     needs: generate-and-sign-sbom
@@ -100,5 +100,5 @@ jobs:
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
-            -d '{"text":"🚨 Critical vulnerabilities detected in latest SBOM scan. Please review on GitHub."}' \
+            -d '{"text":"🚨 Vulnerabilities detected in latest SBOM scan. Please review on GitHub."}' \
             "${{ secrets.TEAMS_WEBHOOK }}"
