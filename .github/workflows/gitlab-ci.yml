@@ -1,0 +1,100 @@
+# 1. Name of the workflow as seen in GitHub Actions UI
+name: Generate, Sign, and Commit SBOM
+
+# 2-4. Trigger the workflow on push to main branch or manual trigger
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# 5. Define jobs to run in this workflow
+jobs:
+
+  # 6. Job to generate and sign the SBOM
+  generate-and-sign-sbom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft -v
+
+      - name: Generate SBOM in CycloneDX format
+        run: |
+          syft . -o cyclonedx-json=log4shell-vulnerable-app-CDX.json
+
+      - name: Upload SBOM as an artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: SBOM
+          path: log4shell-vulnerable-app-CDX.json
+
+      - name: Install Cosign
+        run: |
+          COSIGN_VERSION="v2.2.3"
+          wget https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64
+          chmod +x cosign-linux-amd64
+          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+
+      - name: Sign the SBOM and generate certificate
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign-blob --oidc-issuer="https://token.actions.githubusercontent.com" \
+            --output-certificate log4shell-vulnerable-app-CDX.pem \
+            log4shell-vulnerable-app-CDX.json
+
+      - name: Commit SBOM, Signature, and Certificate to repository
+        run: |
+          git config --local user.email "simlixincarrie02@gmail.com"
+          git config --local user.name "carrieesim"
+          git add log4shell-vulnerable-app-CDX.json log4shell-vulnerable-app-CDX.pem
+          git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
+          git push
+
+  vulnerability-analysis:
+    needs: generate-and-sign-sbom
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: SBOM
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run vulnerability analysis
+        id: grype_scan
+        run: |
+          grype log4shell-vulnerable-app-CDX.json -o table > grype_output.txt
+          if grep -q "Critical" grype_output.txt; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ✅ Updated to use Microsoft Teams Flow Webhook
+      - name: Notify Teams if vulnerability found
+        if: steps.grype_scan.outputs.found == 'true'
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "🚨 Critical vulnerabilities detected in the latest SBOM scan for *log4shell-vulnerable-app*. Please review the results on GitHub."
+            }' \
+            "${{ secrets.TEAMS_WEBHOOK }}"
