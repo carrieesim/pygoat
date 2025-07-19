@@ -95,32 +95,52 @@ jobs:
             echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Notify Teams via Power Automate Webhook
+      - name: Notify Teams via Power Automate
+        if: steps.grype_scan.outputs.found == 'true'
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d '{
-            "attachments": [
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.4",
+            "body": [
               {
-                "content": {
-                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                  "type": "AdaptiveCard",
-                  "version": "1.3",
-                  "body": [
-                    {
-                      "type": "TextBlock",
-                      "text": "🚨 Vulnerability Detected",
-                      "weight": "Bolder",
-                      "size": "Medium"
-                    },
-                    {
-                      "type": "TextBlock",
-                      "text": "A vulnerability was detected in the SBOM scan.",
-                      "wrap": true
-                    }
-                  ]
-                }
+                "type": "TextBlock",
+                "text": "🚨 Vulnerability Detected in SBOM",
+                "weight": "Bolder",
+                "size": "Medium",
+                "color": "Attention"
+              },
+              {
+                "type": "TextBlock",
+                "text": "A vulnerability was detected during the SBOM scan of the repository.",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "Please review the generated SBOM report for details.",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Repository**: ${{ github.repository }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Branch**: ${{ github.ref_name }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Commit SHA**: ${{ github.sha }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+                "wrap": true
               }
             ]
           }' \
           "${{ secrets.TEAMS_WEBHOOK }}"
-
