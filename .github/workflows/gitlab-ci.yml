@@ -80,7 +80,7 @@ jobs:
       - name: Install Grype
         run: |
           GRYPE_VERSION="0.74.0"
-          curl -sSfL https://github.com/anchore/grype/releases/download/$v{GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz | tar -xz
+          curl -sSfL https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz | tar -xz
           sudo mv grype /usr/local/bin/
           grype version
 
