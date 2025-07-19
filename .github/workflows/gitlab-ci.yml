@@ -1,17 +1,12 @@
-# 1. Name of the workflow as seen in GitHub Actions UI
 name: Generate, Sign, and Commit SBOM
 
-# 2-4. Trigger the workflow on push to master branch or manual trigger
 on:
   push:
     branches:
       - master
   workflow_dispatch:
 
-# 5. Define jobs to run in this workflow
 jobs:
-
-  # 6. Job to generate and sign the SBOM
   generate-and-sign-sbom:
     runs-on: ubuntu-latest
     permissions:
@@ -32,7 +27,7 @@ jobs:
 
       - name: Generate SBOM in Syft format
         run: |
-          syft dir:. -o syft-json=log4shell-vulnerable-app-syft.json
+          syft dir:. -o syft-json --file log4shell-vulnerable-app-syft.json
 
       - name: Upload SBOM as an artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +58,6 @@ jobs:
           git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
           git push
 
-  # 7. Vulnerability analysis job
   vulnerability-analysis:
     needs: generate-and-sign-sbom
     runs-on: ubuntu-latest
