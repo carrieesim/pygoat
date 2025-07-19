@@ -51,7 +51,7 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
-          cosign sign-blob --oidc-issuer="https://token.actions.githubusercontent.com" \
+          cosign sign-blob --yes --oidc-issuer="https://token.actions.githubusercontent.com" \
             --output-certificate log4shell-vulnerable-app-CDX.pem \
             log4shell-vulnerable-app-CDX.json
 
