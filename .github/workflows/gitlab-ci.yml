@@ -26,7 +26,7 @@ jobs:
       - name: Install Syft
         run: |
           SYFT_VERSION="1.28.0"
-          curl -sSfL https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz | tar -xz
+          curl -sSfL https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz | tar -xz
           sudo mv syft /usr/local/bin/
           syft version
 
