@@ -88,7 +88,7 @@ jobs:
         id: grype_scan
         run: |
           grype sbom:log4shell-vulnerable-app-spdx.json -o table > grype_output.txt
-          if grep -q "Critical" grype_output.txt; then
+          if grep -q "^\\+" grype_output.txt; then
             echo "found=true" >> $GITHUB_OUTPUT
           else
             echo "found=false" >> $GITHUB_OUTPUT
