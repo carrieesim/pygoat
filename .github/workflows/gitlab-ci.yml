@@ -1,12 +1,17 @@
+# 1. Name of the workflow
 name: Generate, Sign, and Commit SBOM
 
+# 2-4. Trigger on push to master or manual run
 on:
   push:
     branches:
       - master
   workflow_dispatch:
 
+# 5. Define jobs
 jobs:
+
+  # 6. Job to generate and sign the SBOM
   generate-and-sign-sbom:
     runs-on: ubuntu-latest
     permissions:
@@ -25,15 +30,15 @@ jobs:
           sudo mv syft /usr/local/bin/
           syft version
 
-      - name: Generate SBOM in Syft format
+      - name: Generate SBOM in CycloneDX format
         run: |
-          syft dir:. -o syft-json --file log4shell-vulnerable-app-syft.json
+          syft dir:. -o cyclonedx-json --file log4shell-vulnerable-app-cdx.json
 
-      - name: Upload SBOM as an artifact
+      - name: Upload SBOM as artifact
         uses: actions/upload-artifact@v4
         with:
           name: SBOM
-          path: log4shell-vulnerable-app-syft.json
+          path: log4shell-vulnerable-app-cdx.json
 
       - name: Install Cosign
         run: |
@@ -47,17 +52,18 @@ jobs:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign-blob --yes --oidc-issuer="https://token.actions.githubusercontent.com" \
-            --output-certificate log4shell-vulnerable-app-syft.pem \
-            log4shell-vulnerable-app-syft.json
+            --output-certificate log4shell-vulnerable-app-cdx.pem \
+            log4shell-vulnerable-app-cdx.json
 
       - name: Commit SBOM, Signature, and Certificate to repository
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-          git add log4shell-vulnerable-app-syft.json log4shell-vulnerable-app-syft.pem
+          git add log4shell-vulnerable-app-cdx.json log4shell-vulnerable-app-cdx.pem
           git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
           git push
 
+  # 7. Vulnerability analysis job
   vulnerability-analysis:
     needs: generate-and-sign-sbom
     runs-on: ubuntu-latest
@@ -81,7 +87,7 @@ jobs:
       - name: Run vulnerability analysis
         id: grype_scan
         run: |
-          grype sbom:log4shell-vulnerable-app-syft.json -o table > grype_output.txt
+          grype sbom:log4shell-vulnerable-app-cdx.json -o table > grype_output.txt
           if grep -q "Critical" grype_output.txt; then
             echo "found=true" >> $GITHUB_OUTPUT
           else
