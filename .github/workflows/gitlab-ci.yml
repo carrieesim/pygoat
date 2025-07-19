@@ -1,7 +1,7 @@
 # 1. Name of the workflow as seen in GitHub Actions UI
 name: Generate, Sign, and Commit SBOM
 
-# 2-4. Trigger the workflow on push to main branch or manual trigger
+# 2-4. Trigger the workflow on push to master branch or manual trigger
 on:
   push:
     branches:
@@ -25,8 +25,10 @@ jobs:
 
       - name: Install Syft
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-          syft -v
+          SYFT_VERSION="v1.1.0"
+          curl -sSfL https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz | tar -xz
+          sudo mv syft /usr/local/bin/
+          syft version
 
       - name: Generate SBOM in CycloneDX format
         run: |
@@ -61,6 +63,7 @@ jobs:
           git commit -m "Add and Sign SBOM for log4shell-vulnerable-app" || echo "No changes to commit"
           git push
 
+  # 7. Vulnerability analysis job
   vulnerability-analysis:
     needs: generate-and-sign-sbom
     runs-on: ubuntu-latest
@@ -76,7 +79,10 @@ jobs:
 
       - name: Install Grype
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          GRYPE_VERSION="v0.74.0"
+          curl -sSfL https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz | tar -xz
+          sudo mv grype /usr/local/bin/
+          grype version
 
       - name: Run vulnerability analysis
         id: grype_scan
@@ -88,7 +94,7 @@ jobs:
             echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      # ✅ Updated to use Microsoft Teams Flow Webhook
+      # ✅ Microsoft Teams Notification
       - name: Notify Teams if vulnerability found
         if: steps.grype_scan.outputs.found == 'true'
         run: |
