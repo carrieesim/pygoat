@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-
   generate-and-sign-sbom:
     runs-on: ubuntu-latest
     permissions:
@@ -57,7 +56,7 @@ jobs:
           git config --local user.name "carrieesim"
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
           git commit -m "Add and sign SBOM" || echo "No changes to commit"
-          git pull --rebase origin master || true
+          git pull --rebase origin main || true
           git push || echo "Nothing to push"
 
   vulnerability-analysis:
@@ -94,8 +93,9 @@ jobs:
           echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
 
       - name: Notify Teams via Power Automate
-        if: steps.grype_scan.outputs.vuln_count != '0'
+        if: ${{ steps.grype_scan.outputs.vuln_count != '0' }}
         run: |
+          VULN_COUNT=$(jq '.matches | length' grype_results.json)
           cat <<EOF > card.json
 {
   "\$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -111,29 +111,27 @@ jobs:
     },
     {
       "type": "TextBlock",
-      "text": "A total of ${{
-        steps.grype_scan.outputs.vuln_count
-      }} vulnerabilities were detected during SBOM scanning.",
+      "text": "A total of ${VULN_COUNT} vulnerabilities were detected during SBOM scanning.",
       "wrap": true
     },
     {
       "type": "TextBlock",
-      "text": "**Repository**: ${{ github.repository }}",
+      "text": "**Repository**: ${GITHUB_REPOSITORY}",
       "wrap": true
     },
     {
       "type": "TextBlock",
-      "text": "**Branch**: ${{ github.ref_name }}",
+      "text": "**Branch**: ${GITHUB_REF_NAME}",
       "wrap": true
     },
     {
       "type": "TextBlock",
-      "text": "**Commit SHA**: ${{ github.sha }}",
+      "text": "**Commit SHA**: ${GITHUB_SHA}",
       "wrap": true
     },
     {
       "type": "TextBlock",
-      "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+      "text": "🔗 [View Workflow Logs](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})",
       "wrap": true
     }
   ]
