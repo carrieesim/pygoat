@@ -54,10 +54,12 @@ jobs:
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
+          git fetch origin master
+          git rebase origin/master || git rebase --skip || true
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
           git commit -m "Add and sign SBOM" || echo "No changes to commit"
-          git pull --rebase origin master || true
           git push origin HEAD:master || echo "Nothing to push"
+
 
 
   vulnerability-analysis:
