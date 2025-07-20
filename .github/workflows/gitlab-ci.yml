@@ -94,53 +94,13 @@ jobs:
           else
             echo "found=false" >> $GITHUB_OUTPUT
           fi
-
+          
       - name: Notify Teams via Power Automate
         if: steps.grype_scan.outputs.found == 'true'
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d '{
-            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-            "type": "AdaptiveCard",
-            "version": "1.4",
-            "body": [
-              {
-                "type": "TextBlock",
-                "text": "🚨 Vulnerability Detected in SBOM",
-                "weight": "Bolder",
-                "size": "Medium",
-                "color": "Attention"
-              },
-              {
-                "type": "TextBlock",
-                "text": "A vulnerability was detected during the SBOM scan of the repository.",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "Please review the generated SBOM report for details.",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Repository**: ${{ github.repository }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Branch**: ${{ github.ref_name }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Commit SHA**: ${{ github.sha }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
-                "wrap": true
-              }
-            ]
+            "text": "🚨 Vulnerability Detected in SBOM\n\nA vulnerability was detected during the SBOM scan of the repository.\nPlease review the generated SBOM report for details.\n\n- **Repository:** ${{ github.repository }}\n- **Branch:** ${{ github.ref_name }}\n- **Commit SHA:** ${{ github.sha }}\n\n🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           }' \
           "${{ secrets.TEAMS_WEBHOOK }}"
+
