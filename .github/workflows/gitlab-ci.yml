@@ -56,8 +56,8 @@ jobs:
           git config --local user.name "carrieesim"
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
           git commit -m "Add and sign SBOM" || echo "No changes to commit"
-          git pull --rebase origin master
-          git push
+          git pull origin master --rebase
+          git push origin master
 
 
 
