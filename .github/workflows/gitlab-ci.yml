@@ -54,12 +54,40 @@ jobs:
       
       - name: Commit SBOM and signature
         run: |
+          set -e  # stop on error
+
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
+
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
-          git diff --cached --quiet || git commit -m "Add and sign SBOM"
+          
+          # Commit only if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Add and sign SBOM"
+          else
+            echo "No changes to commit"
+          fi
+
+          # Fetch all refs and history (make sure no shallow)
+          git fetch --prune origin
+
+          # Show current status before rebase for debug
+          git status
+          git log -3 --oneline
+
+          # Rebase to sync with remote
           git pull --rebase origin master
-          git push origin master
+
+          # Show status after rebase for debug
+          git status
+          git log -3 --oneline
+
+          # Push changes, fallback to force-with-lease if normal push fails
+          if ! git push origin master; then
+            echo "Normal push failed, trying force-with-lease push"
+            git push --force-with-lease origin master
+          fi
+
 
   vulnerability-analysis:
     needs: generate-and-sign-sbom
