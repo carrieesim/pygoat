@@ -85,62 +85,60 @@ jobs:
           head -40 log4shell-vulnerable-app-spdx.json
           jq empty log4shell-vulnerable-app-spdx.json
 
-      - name: Run vulnerability analysis
+      - name: Run vulnerability analysis with JSON output
         id: grype_scan
         run: |
-          grype sbom:log4shell-vulnerable-app-spdx.json -o table > grype_output.txt
-          if grep -qE "(Critical|High|Medium|Low)" grype_output.txt; then
-            echo "found=true" >> $GITHUB_OUTPUT
-          else
-            echo "found=false" >> $GITHUB_OUTPUT
-          fi
+          grype sbom:log4shell-vulnerable-app-spdx.json -o json > grype_results.json
+          VULN_COUNT=$(jq '.matches | length' grype_results.json)
+          echo "Vulnerability count: $VULN_COUNT"
+          echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
 
       - name: Notify Teams via Power Automate
-        if: steps.grype_scan.outputs.found == 'true'
+        if: steps.grype_scan.outputs.vuln_count != '0'
         run: |
+          cat <<EOF > card.json
+{
+  "\$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "🚨 Vulnerability Detected in SBOM",
+      "weight": "Bolder",
+      "size": "Medium",
+      "color": "Attention"
+    },
+    {
+      "type": "TextBlock",
+      "text": "A total of ${{
+        steps.grype_scan.outputs.vuln_count
+      }} vulnerabilities were detected during SBOM scanning.",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "**Repository**: ${{ github.repository }}",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "**Branch**: ${{ github.ref_name }}",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "**Commit SHA**: ${{ github.sha }}",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+      "wrap": true
+    }
+  ]
+}
+EOF
           curl -X POST -H "Content-Type: application/json" \
-          -d '{
-            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-            "type": "AdaptiveCard",
-            "version": "1.4",
-            "body": [
-              {
-                "type": "TextBlock",
-                "text": "🚨 Vulnerability Detected in SBOM",
-                "weight": "Bolder",
-                "size": "Medium",
-                "color": "Attention"
-              },
-              {
-                "type": "TextBlock",
-                "text": "A vulnerability was detected during the SBOM scan of the repository.",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "Please review the generated SBOM report for details.",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Repository**: ${{ github.repository }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Branch**: ${{ github.ref_name }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "**Commit SHA**: ${{ github.sha }}",
-                "wrap": true
-              },
-              {
-                "type": "TextBlock",
-                "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
-                "wrap": true
-              }
-            ]
-          }' \
-          "${{ secrets.TEAMS_WEBHOOK }}"
+            -d @card.json \
+            "${{ secrets.TEAMS_WEBHOOK }}"
