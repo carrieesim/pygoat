@@ -54,20 +54,19 @@ jobs:
         run: |
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-          
-          git fetch origin master
       
-          # Rebase local changes on top of remote master
+          git fetch origin master
           git rebase origin/master || {
-            echo "Rebase failed, aborting and skipping push"
+            echo "Rebase failed. Aborting."
             git rebase --abort
-            exit 0
+            exit 1
           }
       
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
           git commit -m "Add and sign SBOM" || echo "No changes to commit"
-      
-          git push origin HEAD:master || echo "Push failed, maybe no new changes"
+          
+          git push origin HEAD:master
+
 
 
 
