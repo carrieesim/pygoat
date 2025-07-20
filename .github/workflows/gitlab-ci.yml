@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
+
   generate-and-sign-sbom:
     runs-on: ubuntu-latest
     permissions:
@@ -15,10 +16,8 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout code with full history
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # IMPORTANT: full git history for proper pull/rebase
 
       - name: Install Syft
         run: |
@@ -51,43 +50,15 @@ jobs:
           cosign sign-blob --yes --oidc-issuer="https://token.actions.githubusercontent.com" \
             --output-certificate log4shell-vulnerable-app-spdx.pem \
             log4shell-vulnerable-app-spdx.json
-      
+
       - name: Commit SBOM and signature
         run: |
-          set -e  # stop on error
-
           git config --local user.email "simlixincarrie02@gmail.com"
           git config --local user.name "carrieesim"
-
           git add log4shell-vulnerable-app-spdx.json log4shell-vulnerable-app-spdx.pem
-          
-          # Commit only if there are changes
-          if ! git diff --cached --quiet; then
-            git commit -m "Add and sign SBOM"
-          else
-            echo "No changes to commit"
-          fi
-
-          # Fetch all refs and history (make sure no shallow)
-          git fetch --prune origin
-
-          # Show current status before rebase for debug
-          git status
-          git log -3 --oneline
-
-          # Rebase to sync with remote
-          git pull --rebase origin master
-
-          # Show status after rebase for debug
-          git status
-          git log -3 --oneline
-
-          # Push changes, fallback to force-with-lease if normal push fails
-          if ! git push origin master; then
-            echo "Normal push failed, trying force-with-lease push"
-            git push --force-with-lease origin master
-          fi
-
+          git commit -m "Add and sign SBOM" || echo "No changes to commit"
+          git pull --rebase origin master || true
+          git push || echo "Nothing to push"
 
   vulnerability-analysis:
     needs: generate-and-sign-sbom
@@ -114,59 +85,62 @@ jobs:
           head -40 log4shell-vulnerable-app-spdx.json
           jq empty log4shell-vulnerable-app-spdx.json
 
-      - name: Run vulnerability analysis with JSON output
+      - name: Run vulnerability analysis
         id: grype_scan
         run: |
-          grype sbom:log4shell-vulnerable-app-spdx.json -o json > grype_results.json
-          VULN_COUNT=$(jq '.matches | length' grype_results.json)
-          echo "Vulnerability count: $VULN_COUNT"
-          echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
+          grype sbom:log4shell-vulnerable-app-spdx.json -o table > grype_output.txt
+          if grep -qE "(Critical|High|Medium|Low)" grype_output.txt; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Notify Teams via Power Automate
-        if: ${{ steps.grype_scan.outputs.vuln_count != '0' }}
+        if: steps.grype_scan.outputs.found == 'true'
         run: |
-          VULN_COUNT=$(jq '.matches | length' grype_results.json)
-          cat <<EOF > card.json
-{
-  "\$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-  "type": "AdaptiveCard",
-  "version": "1.4",
-  "body": [
-    {
-      "type": "TextBlock",
-      "text": "🚨 Vulnerability Detected in SBOM",
-      "weight": "Bolder",
-      "size": "Medium",
-      "color": "Attention"
-    },
-    {
-      "type": "TextBlock",
-      "text": "A total of ${VULN_COUNT} vulnerabilities were detected during SBOM scanning.",
-      "wrap": true
-    },
-    {
-      "type": "TextBlock",
-      "text": "**Repository**: ${GITHUB_REPOSITORY}",
-      "wrap": true
-    },
-    {
-      "type": "TextBlock",
-      "text": "**Branch**: ${GITHUB_REF_NAME}",
-      "wrap": true
-    },
-    {
-      "type": "TextBlock",
-      "text": "**Commit SHA**: ${GITHUB_SHA}",
-      "wrap": true
-    },
-    {
-      "type": "TextBlock",
-      "text": "🔗 [View Workflow Logs](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})",
-      "wrap": true
-    }
-  ]
-}
-EOF
           curl -X POST -H "Content-Type: application/json" \
-            -d @card.json \
-            "${{ secrets.TEAMS_WEBHOOK }}"
+          -d '{
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.4",
+            "body": [
+              {
+                "type": "TextBlock",
+                "text": "🚨 Vulnerability Detected in SBOM",
+                "weight": "Bolder",
+                "size": "Medium",
+                "color": "Attention"
+              },
+              {
+                "type": "TextBlock",
+                "text": "A vulnerability was detected during the SBOM scan of the repository.",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "Please review the generated SBOM report for details.",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Repository**: ${{ github.repository }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Branch**: ${{ github.ref_name }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "**Commit SHA**: ${{ github.sha }}",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": "🔗 [View Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+                "wrap": true
+              }
+            ]
+          }' \
+          "${{ secrets.TEAMS_WEBHOOK }}"
