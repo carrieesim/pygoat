@@ -99,5 +99,5 @@ jobs:
         if: steps.grype_scan.outputs.found == 'true'
         run: |
           curl -X POST -H "Content-Type: application/json" \
-          -d '{"text":"A vulnerability was detected during the SBOM scan of the Repository: ${{ github.repository }}"}' \
+          -d 'A vulnerability was detected during the SBOM scan of the Repository: ${{ github.repository }}' \
           "${{ secrets.TEAMS_WEBHOOK }}"
